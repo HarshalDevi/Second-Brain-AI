@@ -1,0 +1,30 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: secondbrain
+    ports:
+      - "5432:5432"
+    volumes:
+      - sb_pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/secondbrain
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      UPLOAD_DIR: /app/uploads
+      APP_ENV: dev
+      CORS_ALLOW_ORIGINS: "*"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    volumes:
+      - sb_uploads:/app/uploads
+
+volumes:
+  sb_pgdata:
+  sb_uploads:
