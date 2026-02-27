@@ -29,6 +29,7 @@ engine = create_async_engine(
         "ssl": ssl_context,
         "statement_cache_size": 0,   # 🔥 REQUIRED for PgBouncer
     },
+    execution_options={"compiled_cache": None},  # 🔥 REQUIRED for SQLAlchemy + PgBouncer
 )
 
 
