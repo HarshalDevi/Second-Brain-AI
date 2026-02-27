@@ -1,128 +1,207 @@
-"use client";
+import type {
+  ChatResponse,
+  DocumentRow,
+  ChunkOut,
+  IngestJobOut,
+} from "@/lib/types";
 
-import { useMemo, useState } from "react";
-import type { ChunkRow } from "@/lib/types";
-import { chatStream } from "@/lib/api";
-import { CitationsPanel } from "@/components/CitationsPanel";
+/* =======================
+   API BASE (FIXED)
+   ======================= */
 
-type Msg = { role: "user" | "assistant"; text: string };
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
-export function ChatPanel() {
-  const [query, setQuery] = useState("");
-  const [conversationId, setConversationId] = useState<number | null>(null);
-  const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [citations, setCitations] = useState<ChunkRow[]>([]);
-  const [streaming, setStreaming] = useState(true);
-  const [busy, setBusy] = useState(false);
-
-  const canSend = useMemo(
-    () => query.trim().length > 0 && !busy,
-    [query, busy]
+if (!API_BASE) {
+  throw new Error(
+    "NEXT_PUBLIC_API_BASE is not set. Please configure it in Vercel environment variables."
   );
+}
 
-  async function onSend() {
-    const q = query.trim();
-    if (!q) return;
+function url(path: string) {
+  return `${API_BASE}${path}`;
+}
 
-    setBusy(true);
-    setQuery("");
-    setMsgs((m) => [...m, { role: "user", text: q }]);
+/* ----------------------------- Health ----------------------------- */
 
-    let assistantText = "";
-    setMsgs((m) => [...m, { role: "assistant", text: "" }]);
+export async function health() {
+  const r = await fetch(url("/health"));
+  if (!r.ok) throw new Error(`Health failed: ${r.status}`);
+  return r.json();
+}
 
-    await chatStream(
-      { query: q, conversation_id: conversationId },
-      {
-        onMeta: (meta) => {
-          if (meta?.conversation_id != null)
-            setConversationId(meta.conversation_id);
-          if (Array.isArray(meta?.citations))
-            setCitations(meta.citations);
-        },
-        onToken: (tok) => {
-  assistantText += tok.startsWith(" ") ? tok : " " + tok;
-  setMsgs((m) => {
-    const copy = [...m];
-    copy[copy.length - 1] = {
-      role: "assistant",
-      text: assistantText.trim(),
-    };
-    return copy;
+/* ----------------------------- Ingest ----------------------------- */
+
+export async function ingestText(payload: { title: string; text: string }) {
+  const r = await fetch(url("/v1/ingest/text"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-},
-        onDone: () => setBusy(false),
-      }
-    );
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as DocumentRow;
+}
+
+export async function ingestUrl(payload: { title: string; url: string }) {
+  const r = await fetch(url("/v1/ingest/url"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as DocumentRow;
+}
+
+export async function ingestFile(file: File) {
+  const fd = new FormData();
+  fd.append("file", file);
+
+  const r = await fetch(url("/v1/ingest/file"), {
+    method: "POST",
+    body: fd,
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as DocumentRow;
+}
+
+export async function ingestAudio(file: File) {
+  const fd = new FormData();
+  fd.append("file", file);
+
+  const r = await fetch(url("/v1/ingest/audio"), {
+    method: "POST",
+    body: fd,
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as DocumentRow;
+}
+
+export async function jobStatus(documentId: number) {
+  const r = await fetch(url(`/v1/ingest/jobs/${documentId}`));
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as IngestJobOut;
+}
+
+/* ----------------------------- Chat (non-stream) ----------------------------- */
+
+export async function chat(payload: {
+  query: string;
+  conversation_id?: number | null;
+}) {
+  const r = await fetch(url("/v1/chat"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: payload.query,
+      conversation_id: payload.conversation_id ?? null,
+    }),
+  });
+
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as ChatResponse;
+}
+
+/* ----------------------------- Chat (streaming SSE) ----------------------------- */
+/**
+ * Expects:
+ *  - event: meta   data: {"conversation_id":..., "citations":[...]}
+ *  - data: <token>
+ *  - event: done
+ */
+export async function chatStream(
+  payload: { query: string; conversation_id?: number | null },
+  handlers: {
+    onMeta?: (meta: any) => void;
+    onToken?: (token: string) => void;
+    onDone?: () => void;
   }
+) {
+  const r = await fetch(url("/v1/chat/stream"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: payload.query,
+      conversation_id: payload.conversation_id ?? null,
+    }),
+  });
 
-  return (
-    <div className="flex flex-col gap-4 min-h-[65vh]">
-      {/* Top bar */}
-      <div className="flex justify-between items-center text-sm text-slate-500">
-        <div>
-          Conversation:{" "}
-          <span className="font-medium text-slate-900">
-            {conversationId ?? "new"}
-          </span>
-        </div>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={streaming}
-            onChange={(e) => setStreaming(e.target.checked)}
-          />
-          Stream
-        </label>
-      </div>
+  if (!r.ok) throw new Error(await r.text());
+  if (!r.body) throw new Error("No response body for stream");
 
-      {/* Chat area */}
-      <div className="flex-1 rounded-2xl bg-sky-50 p-4 overflow-auto ring-1 ring-sky-100">
-        <div className="flex flex-col gap-3">
-          {msgs.length === 0 && (
-            <div className="text-sm text-slate-500">
-              Ask something after ingesting content.
-            </div>
-          )}
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
 
-          {msgs.map((m, i) => (
-            <div
-              key={i}
-              className={[
-                "max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap",
-                m.role === "user"
-                  ? "ml-auto bg-indigo-600 text-white shadow"
-                  : "mr-auto bg-white text-slate-800 shadow-sm ring-1 ring-slate-200",
-              ].join(" ")}
-            >
-              {m.text || "…"}
-            </div>
-          ))}
-        </div>
-      </div>
+  const emit = (block: string) => {
+    const lines = block.split("\n").map((l) => l.trimEnd());
+    let eventName = "message";
+    const dataLines: string[] = [];
 
-      {/* Input */}
-      <div className="flex gap-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && canSend) onSend();
-          }}
-          placeholder="Ask your second brain…"
-          className="flex-1 rounded-xl bg-white px-4 py-2 ring-1 ring-slate-300 focus:ring-2 focus:ring-indigo-500"
-        />
-        <button
-          onClick={onSend}
-          disabled={!canSend}
-          className="rounded-xl bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-        >
-          Send
-        </button>
-      </div>
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        eventName = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        dataLines.push(line.slice(5).trimStart());
+      }
+    }
 
-      {/* Citations */}
-      <CitationsPanel citations={citations} />
-    </div>
-  );
+    const data = dataLines.join("\n");
+
+    if (eventName === "meta") {
+      try {
+        handlers.onMeta?.(JSON.parse(data));
+      } catch {
+        handlers.onMeta?.(data);
+      }
+      return;
+    }
+
+    if (eventName === "done") {
+      handlers.onDone?.();
+      return;
+    }
+
+    if (data) handlers.onToken?.(data);
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) >= 0) {
+        const block = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        if (block.trim()) emit(block);
+      }
+    }
+
+    if (buffer.trim()) emit(buffer);
+  } finally {
+    handlers.onDone?.();
+  }
+}
+
+/* ----------------------------- Documents ----------------------------- */
+
+export async function listDocuments() {
+  const r = await fetch(url("/v1/documents"));
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as DocumentRow[];
+}
+
+export async function getDocumentChunks(documentId: number) {
+  const r = await fetch(url(`/v1/documents/${documentId}/chunks`));
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as ChunkOut[];
+}
+
+export async function deleteDocument(documentId: number) {
+  const r = await fetch(url(`/v1/documents/${documentId}`), {
+    method: "DELETE",
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
 }
