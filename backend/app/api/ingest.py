@@ -35,7 +35,7 @@ router = APIRouter()
 
 
 # --------------------------------------------------
-# SAFE ORM → SCHEMA CONVERTER (CRITICAL FIX)
+# SAFE ORM → SCHEMA CONVERTER
 # --------------------------------------------------
 def _doc_out(doc: Document) -> DocumentOut:
     return DocumentOut(
@@ -46,19 +46,13 @@ def _doc_out(doc: Document) -> DocumentOut:
         mime_type=doc.mime_type,
         size_bytes=doc.size_bytes,
         status=doc.status,
-        error=doc.error,
         created_at=doc.created_at,
-        ingested_at=doc.ingested_at,
-        source_published_at=doc.source_published_at,
     )
 
 
 # --------------------------------------------------
 # TEXT INGEST
 # --------------------------------------------------
-# backend/app/api/ingest.py
-
-# --- TEXT INGEST ---
 @router.post("/text", response_model=DocumentOut)
 async def ingest_text(
     payload: IngestTextIn,
@@ -85,7 +79,6 @@ async def ingest_text(
     db.add(job)
     await db.commit()
 
-    # ✅ FIX: DO NOT PASS db
     background_tasks.add_task(
         run_ingestion_pipeline,
         doc.id,
@@ -97,7 +90,7 @@ async def ingest_text(
 
 
 # --------------------------------------------------
-# URL INGEST (FIXED ENUM + size_bytes)
+# URL INGEST  ✅ FIXED
 # --------------------------------------------------
 @router.post("/url", response_model=DocumentOut)
 async def ingest_url(
@@ -107,10 +100,10 @@ async def ingest_url(
 ):
     doc = Document(
         title=payload.title or payload.url,
-        source_type=SourceType.url,        # ✅ MUST MATCH ENUM
+        source_type=SourceType.url,
         source_uri=payload.url,
         mime_type="text/html",
-        size_bytes=None,                   # ✅ REQUIRED for Pydantic
+        size_bytes=None,
         status=DocumentStatus.processing,
         created_at=datetime.utcnow(),
     )
@@ -127,7 +120,6 @@ async def ingest_url(
 
     background_tasks.add_task(
         run_ingestion_pipeline,
-        db,
         doc.id,
         source_type=SourceType.url,
         url=payload.url,
@@ -137,7 +129,7 @@ async def ingest_url(
 
 
 # --------------------------------------------------
-# FILE INGEST
+# FILE INGEST  ✅ FIXED
 # --------------------------------------------------
 @router.post("/file", response_model=DocumentOut)
 async def ingest_file(
@@ -180,7 +172,6 @@ async def ingest_file(
 
     background_tasks.add_task(
         run_ingestion_pipeline,
-        db,
         doc.id,
         source_type=SourceType.document,
         file_path=path,
@@ -188,8 +179,9 @@ async def ingest_file(
 
     return _doc_out(doc)
 
+
 # --------------------------------------------------
-# AUDIO INGEST 
+# AUDIO INGEST  ✅ FIXED
 # --------------------------------------------------
 @router.post("/audio", response_model=DocumentOut)
 async def ingest_audio(
@@ -215,7 +207,7 @@ async def ingest_audio(
 
     doc = Document(
         title=file.filename,
-        source_type=SourceType.audio,   # ✅ enum already exists
+        source_type=SourceType.audio,
         source_uri=path,
         mime_type=file.content_type,
         size_bytes=len(content),
@@ -235,13 +227,14 @@ async def ingest_audio(
 
     background_tasks.add_task(
         run_ingestion_pipeline,
-        db,
         doc.id,
         source_type=SourceType.audio,
         file_path=path,
     )
 
     return _doc_out(doc)
+
+
 # --------------------------------------------------
 # JOB STATUS
 # --------------------------------------------------
