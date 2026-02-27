@@ -56,6 +56,9 @@ def _doc_out(doc: Document) -> DocumentOut:
 # --------------------------------------------------
 # TEXT INGEST
 # --------------------------------------------------
+# backend/app/api/ingest.py
+
+# --- TEXT INGEST ---
 @router.post("/text", response_model=DocumentOut)
 async def ingest_text(
     payload: IngestTextIn,
@@ -82,9 +85,9 @@ async def ingest_text(
     db.add(job)
     await db.commit()
 
+    # ✅ FIX: DO NOT PASS db
     background_tasks.add_task(
         run_ingestion_pipeline,
-        db,
         doc.id,
         source_type=SourceType.text,
         text_input=payload.text,
