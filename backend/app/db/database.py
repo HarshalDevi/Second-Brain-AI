@@ -25,15 +25,14 @@ ssl_context.verify_mode = ssl.CERT_NONE
 
 engine = create_async_engine(
     normalize_db_url(settings.database_url),
-    poolclass=NullPool,          # 🔥 Required for PgBouncer transaction mode
+    poolclass=NullPool,  # ✅ PgBouncer transaction-mode safe (no connection reuse)
     pool_pre_ping=True,
     connect_args={
         "ssl": ssl_context,
-        "statement_cache_size": 0,  # 🔥 Disable asyncpg statement cache
-        "prepare_threshold": 0,     # 🔥 Disable asyncpg prepared statements ENTIRELY
+        "statement_cache_size": 0,  # ✅ disable asyncpg statement cache
     },
     execution_options={
-        "compiled_cache": None,     # 🔥 Disable SQLAlchemy compiled cache
+        "compiled_cache": None,     # ✅ disable SQLAlchemy compiled cache
     },
 )
 
