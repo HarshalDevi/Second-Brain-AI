@@ -38,3 +38,7 @@ app.include_router(api_router, prefix="/v1")
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.get("/")
+async def root():
+    return {"service": "SecondBrain", "status": "running"}
