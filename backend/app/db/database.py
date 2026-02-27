@@ -1,6 +1,7 @@
 import ssl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool  # 🔥 REQUIRED for PgBouncer transaction mode
 from app.config import settings
 
 
@@ -24,12 +25,15 @@ ssl_context.verify_mode = ssl.CERT_NONE
 
 engine = create_async_engine(
     normalize_db_url(settings.database_url),
+    poolclass=NullPool,  # 🔥 NO connection reuse (PgBouncer-safe)
     pool_pre_ping=True,
     connect_args={
         "ssl": ssl_context,
-        "statement_cache_size": 0,   # 🔥 REQUIRED for PgBouncer
+        "statement_cache_size": 0,  # 🔥 Disable asyncpg prepared statements
     },
-    execution_options={"compiled_cache": None},  # 🔥 REQUIRED for SQLAlchemy + PgBouncer
+    execution_options={
+        "compiled_cache": None  # 🔥 Disable SQLAlchemy compiled cache
+    },
 )
 
 
