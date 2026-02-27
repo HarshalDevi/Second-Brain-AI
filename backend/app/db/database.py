@@ -1,3 +1,5 @@
+import ssl
+
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
@@ -11,7 +13,7 @@ class Base(DeclarativeBase):
 def _async_db_url(url: str) -> str:
     # Accept both:
     #  - postgresql://
-    #  - postgres:// (some hosts)
+    #  - postgres://
     # Convert to asyncpg.
     u = url.replace("postgres://", "postgresql://")
     if u.startswith("postgresql+asyncpg://"):
@@ -21,9 +23,23 @@ def _async_db_url(url: str) -> str:
     return u
 
 
+# --- SSL FIX FOR SUPABASE POOLER ---
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+# ---------------------------------
+
+
 engine = create_async_engine(
     _async_db_url(settings.database_url),
     pool_pre_ping=True,
-    connect_args={"ssl": True},
+    connect_args={
+        "ssl": ssl_context
+    },
 )
-AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
