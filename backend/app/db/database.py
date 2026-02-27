@@ -21,5 +21,9 @@ def _async_db_url(url: str) -> str:
     return u
 
 
-engine = create_async_engine(_async_db_url(settings.database_url), pool_pre_ping=True)
+engine = create_async_engine(
+    _async_db_url(settings.database_url),
+    pool_pre_ping=True,
+    connect_args={"ssl": True},
+)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
