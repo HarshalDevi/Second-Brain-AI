@@ -57,6 +57,7 @@ export function DocumentsPanel() {
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      {/* LEFT: Documents */}
       <div className="rounded-2xl border bg-white p-4">
         <div className="flex items-center justify-between">
           <div className="font-medium">Documents</div>
@@ -69,7 +70,11 @@ export function DocumentsPanel() {
           </button>
         </div>
 
-        {err && <div className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+        {err && (
+          <div className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            {err}
+          </div>
+        )}
 
         <div className="mt-3 grid gap-2">
           {docs.length === 0 ? (
@@ -77,14 +82,18 @@ export function DocumentsPanel() {
           ) : (
             docs.map((d) => (
               <div key={d.id} className="rounded-xl border bg-zinc-50 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{d.title}</div>
+                {/* ✅ FIXED LAYOUT */}
+                <div className="flex items-start justify-between gap-2 w-full">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      {d.title}
+                    </div>
                     <div className="mt-1 text-xs text-zinc-600">
                       id {d.id} • {d.source_type} • {d.status}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+
+                  <div className="flex gap-2 shrink-0">
                     <button
                       className="rounded-lg bg-white border px-2 py-1 text-xs hover:bg-zinc-100"
                       onClick={() => openDoc(d)}
@@ -99,21 +108,32 @@ export function DocumentsPanel() {
                     </button>
                   </div>
                 </div>
-                {d.error && <div className="mt-2 text-xs text-red-700">{d.error}</div>}
+
+                {d.error && (
+                  <div className="mt-2 text-xs text-red-700">
+                    {d.error}
+                  </div>
+                )}
               </div>
             ))
           )}
         </div>
       </div>
 
+      {/* RIGHT: Chunks */}
       <div className="rounded-2xl border bg-white p-4">
         <div className="font-medium">Chunks</div>
+
         {!selected ? (
-          <div className="mt-3 text-sm text-zinc-500">Open a document to see its chunks.</div>
+          <div className="mt-3 text-sm text-zinc-500">
+            Open a document to see its chunks.
+          </div>
         ) : (
           <div className="mt-3">
             <div className="rounded-xl border bg-zinc-50 p-3 text-sm">
-              <div className="truncate"><b>{selected.title}</b></div>
+              <div className="truncate">
+                <b>{selected.title}</b>
+              </div>
               <div className="mt-1 text-xs text-zinc-600">
                 doc {selected.id} • {selected.source_type} • {selected.status}
               </div>
@@ -121,12 +141,21 @@ export function DocumentsPanel() {
 
             <div className="mt-3 grid gap-2">
               {chunks.length === 0 ? (
-                <div className="text-sm text-zinc-500">No chunks yet (or still processing).</div>
+                <div className="text-sm text-zinc-500">
+                  No chunks yet (or still processing).
+                </div>
               ) : (
                 chunks.map((c) => (
-                  <div key={c.id} className="rounded-xl border bg-zinc-50 p-3">
-                    <div className="text-xs text-zinc-600">chunk {c.chunk_index}</div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm">{c.text}</div>
+                  <div
+                    key={c.id}
+                    className="rounded-xl border bg-zinc-50 p-3"
+                  >
+                    <div className="text-xs text-zinc-600">
+                      chunk {c.chunk_index}
+                    </div>
+                    <div className="mt-2 whitespace-pre-wrap text-sm">
+                      {c.text}
+                    </div>
                   </div>
                 ))
               )}
