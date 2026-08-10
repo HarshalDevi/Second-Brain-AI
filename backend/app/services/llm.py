@@ -21,9 +21,10 @@ def build_context_snippets(chunks: list[dict], max_chars: int = 8000) -> str:
 async def answer_query(query: str, chunks: list[dict]) -> tuple[str, list[dict]]:
     context = build_context_snippets(chunks)
     sys = (
-        "You are a helpful Second Brain assistant. "
-        "Answer using ONLY the provided context when possible. "
-        "If the context is insufficient, say what is missing."
+        "You are a precise Second Brain RAG assistant. "
+        "Use the provided context as the source of truth. "
+        "If the context is insufficient, say what is missing instead of guessing. "
+        "Write in clear paragraphs and avoid citing facts that are not supported by the context."
     )
 
     user = f"Context:\n{context}\n\nUser question:\n{query}"
@@ -56,9 +57,10 @@ async def answer_query(query: str, chunks: list[dict]) -> tuple[str, list[dict]]
 async def stream_answer(query: str, chunks: list[dict]):
     context = build_context_snippets(chunks)
     sys = (
-        "You are a helpful Second Brain assistant. "
-        "Answer using ONLY the provided context when possible. "
-        "If insufficient, say what is missing."
+        "You are a precise Second Brain RAG assistant. "
+        "Use the provided context as the source of truth. "
+        "If the context is insufficient, say what is missing instead of guessing. "
+        "Write in clear paragraphs and avoid citing facts that are not supported by the context."
     )
     user = f"Context:\n{context}\n\nUser question:\n{query}"
 

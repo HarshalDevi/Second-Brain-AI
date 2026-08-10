@@ -1,14 +1,31 @@
 "use client";
 
 import { useState } from "react";
+import { FileAudio, FileText, Globe2, Loader2, RefreshCw, Type, UploadCloud } from "lucide-react";
 import { ingestAudio, ingestFile, ingestText, ingestUrl, jobStatus } from "@/lib/api";
 import type { DocumentRow, IngestJobOut } from "@/lib/types";
+
+const modes = [
+  { id: "text", label: "Text", description: "Paste notes or snippets", icon: Type },
+  { id: "url", label: "URL", description: "Clean article pages", icon: Globe2 },
+  { id: "file", label: "File", description: "PDF and text documents", icon: FileText },
+  { id: "audio", label: "Audio", description: "Transcribe recordings", icon: FileAudio },
+] as const;
+
+type Mode = (typeof modes)[number]["id"];
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
+
+function statusTone(status?: string) {
+  if (status === "ready" || status === "done") return "bg-emerald-50 text-emerald-700 ring-emerald-100";
+  if (status === "error" || status === "failed") return "bg-red-50 text-red-700 ring-red-100";
+  return "bg-amber-50 text-amber-700 ring-amber-100";
+}
+
 export function IngestPanel() {
-  const [mode, setMode] = useState<"text" | "url" | "file" | "audio">("text");
+  const [mode, setMode] = useState<Mode>("text");
   const [title, setTitle] = useState("Daily Notes");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
@@ -27,21 +44,22 @@ export function IngestPanel() {
 
     try {
       let doc: DocumentRow;
-      if (mode === "text") doc = await ingestText({ title, text });
-      else if (mode === "url") doc = await ingestUrl({ title, url });
-      else if (mode === "file") {
-        if (!file) throw new Error("Pick a file first");
+      if (mode === "text") {
+        if (!text.trim()) throw new Error("Paste text before ingesting.");
+        doc = await ingestText({ title, text });
+      } else if (mode === "url") {
+        if (!url.trim()) throw new Error("Enter a URL before ingesting.");
+        doc = await ingestUrl({ title, url });
+      } else if (mode === "file") {
+        if (!file) throw new Error("Pick a file first.");
         doc = await ingestFile(file);
       } else {
-        if (!file) throw new Error("Pick an audio file first");
+        if (!file) throw new Error("Pick an audio file first.");
         doc = await ingestAudio(file);
       }
 
       setCreatedDoc(doc);
-
-      // poll once immediately
-      const j = await jobStatus(doc.id);
-      setJob(j);
+      setJob(await jobStatus(doc.id));
     } catch (e: unknown) {
       setErr(errorMessage(e));
     } finally {
@@ -53,126 +71,173 @@ export function IngestPanel() {
     if (!createdDoc) return;
     setErr(null);
     try {
-      const j = await jobStatus(createdDoc.id);
-      setJob(j);
+      setJob(await jobStatus(createdDoc.id));
     } catch (e: unknown) {
       setErr(errorMessage(e));
     }
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="flex flex-wrap gap-2">
-          {(["text", "url", "file", "audio"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={[
-                "rounded-xl px-3 py-2 text-sm font-medium",
-                mode === m ? "bg-zinc-900 text-white" : "bg-white text-zinc-800 border hover:bg-zinc-50"
-              ].join(" ")}
-            >
-              {m.toUpperCase()}
-            </button>
-          ))}
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {modes.map((item) => {
+            const Icon = item.icon;
+            const active = mode === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setMode(item.id)}
+                className={[
+                  "min-h-24 rounded-2xl p-3 text-left transition ring-1",
+                  active
+                    ? "bg-slate-950 text-white ring-slate-950"
+                    : "bg-slate-50 text-slate-700 ring-slate-200 hover:bg-white",
+                ].join(" ")}
+              >
+                <div
+                  className={[
+                    "flex h-9 w-9 items-center justify-center rounded-xl ring-1",
+                    active
+                      ? "bg-white/10 text-white ring-white/15"
+                      : "bg-white text-cyan-700 ring-slate-200",
+                  ].join(" ")}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="mt-3 text-sm font-semibold">{item.label}</div>
+                <div className={active ? "mt-1 text-xs text-slate-300" : "mt-1 text-xs text-slate-500"}>
+                  {item.description}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="mt-4 grid gap-3">
-          <div className="grid gap-1">
-            <label className="text-xs text-zinc-600">Title</label>
+        <div className="mt-5 grid gap-4">
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Title</span>
             <input
-              className="rounded-xl border px-3 py-2 text-sm"
+              className="h-11 rounded-xl bg-slate-50 px-3 text-sm text-slate-900 ring-1 ring-slate-200 outline-none focus:bg-white focus:ring-2 focus:ring-cyan-500"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Document title"
             />
-          </div>
+          </label>
 
           {mode === "text" && (
-            <div className="grid gap-1">
-              <label className="text-xs text-zinc-600">Text</label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Text</span>
               <textarea
-                className="min-h-[160px] rounded-xl border px-3 py-2 text-sm"
+                className="min-h-[280px] rounded-2xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-900 ring-1 ring-slate-200 outline-none focus:bg-white focus:ring-2 focus:ring-cyan-500"
                 value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Paste notes here..."
+                onChange={(event) => setText(event.target.value)}
+                placeholder="Paste notes, article text, meeting notes, or research snippets..."
               />
-            </div>
+            </label>
           )}
 
           {mode === "url" && (
-            <div className="grid gap-1">
-              <label className="text-xs text-zinc-600">URL</label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">URL</span>
               <input
-                className="rounded-xl border px-3 py-2 text-sm"
+                className="h-12 rounded-xl bg-slate-50 px-3 text-sm text-slate-900 ring-1 ring-slate-200 outline-none focus:bg-white focus:ring-2 focus:ring-cyan-500"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://..."
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="https://example.com/article"
               />
-            </div>
+            </label>
           )}
 
           {(mode === "file" || mode === "audio") && (
-            <div className="grid gap-1">
-              <label className="text-xs text-zinc-600">
-                {mode === "audio" ? "Audio file" : "Document file"}
-              </label>
+            <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:bg-white">
+              <UploadCloud className="h-8 w-8 text-cyan-700" aria-hidden="true" />
+              <span className="mt-3 text-sm font-medium text-slate-900">
+                {file?.name ?? (mode === "audio" ? "Choose an audio file" : "Choose a document")}
+              </span>
+              <span className="mt-1 text-xs text-slate-500">
+                {file ? `${Math.ceil(file.size / 1024)} KB selected` : "Click to browse from your computer"}
+              </span>
               <input
                 type="file"
-                className="rounded-xl border bg-white px-3 py-2 text-sm"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="sr-only"
+                accept={mode === "audio" ? "audio/*" : undefined}
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
-              <div className="text-xs text-zinc-500">
-                Selected: {file?.name ?? "none"}
-              </div>
-            </div>
+            </label>
           )}
 
-          {err && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+          {err && (
+            <div className="rounded-2xl bg-red-50 p-3 text-sm text-red-700 ring-1 ring-red-100">
+              {err}
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <button
               disabled={busy}
               onClick={onIngest}
-              className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-cyan-600 px-4 text-sm font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {busy ? "Ingesting..." : "Ingest"}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <UploadCloud className="h-4 w-4" aria-hidden="true" />}
+              {busy ? "Ingesting" : "Ingest source"}
             </button>
             <button
               disabled={!createdDoc}
               onClick={onRefreshJob}
-              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Refresh Job
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Refresh status
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="font-medium">Latest result</div>
+      <aside className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+        <div className="text-sm font-semibold text-slate-950">Ingestion status</div>
+        <p className="mt-1 text-sm leading-6 text-slate-500">
+          Track the latest source as it moves through extract, chunk, embed, and store.
+        </p>
 
         {!createdDoc ? (
-          <div className="mt-3 text-sm text-zinc-500">No ingestion yet.</div>
+          <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+            No source submitted in this session.
+          </div>
         ) : (
-          <div className="mt-3 grid gap-2 text-sm">
-            <div className="rounded-xl bg-zinc-50 p-3 border">
-              <div><span className="text-zinc-500">Doc ID:</span> <b>{createdDoc.id}</b></div>
-              <div><span className="text-zinc-500">Status:</span> <b>{createdDoc.status}</b></div>
-              <div><span className="text-zinc-500">Type:</span> <b>{createdDoc.source_type}</b></div>
-              <div className="truncate"><span className="text-zinc-500">Title:</span> <b>{createdDoc.title}</b></div>
+          <div className="mt-4 grid gap-3 text-sm">
+            <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+              <div className="text-xs text-slate-500">Document</div>
+              <div className="mt-1 truncate font-semibold text-slate-950">{createdDoc.title || `Document ${createdDoc.id}`}</div>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                <span>doc {createdDoc.id}</span>
+                <span>{createdDoc.source_type}</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+              <div className="text-xs text-slate-500">Document status</div>
+              <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(createdDoc.status)}`}>
+                {createdDoc.status}
+              </span>
+              {createdDoc.error && <div className="mt-2 text-sm text-red-700">{createdDoc.error}</div>}
             </div>
 
             {job && (
-              <div className="rounded-xl bg-zinc-50 p-3 border">
-                <div><span className="text-zinc-500">Job Status:</span> <b>{job.status}</b></div>
-                <div><span className="text-zinc-500">Stage:</span> <b>{job.stage}</b></div>
-                {job.error && <div className="mt-2 text-red-700"><b>Error:</b> {job.error}</div>}
+              <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs text-slate-500">Pipeline</div>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(job.status)}`}>
+                    {job.status}
+                  </span>
+                  <span className="text-xs font-medium text-slate-600">{job.stage ?? "queued"}</span>
+                </div>
+                {job.error && <div className="mt-2 text-sm text-red-700">{job.error}</div>}
               </div>
             )}
           </div>
         )}
-      </div>
+      </aside>
     </div>
   );
 }
