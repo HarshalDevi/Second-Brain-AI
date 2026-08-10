@@ -100,6 +100,13 @@ export async function jobStatus(documentId: number) {
   return (await r.json()) as IngestJobOut;
 }
 
+export async function getDocument(documentId: number) {
+  const r = await fetch(url(`/v1/documents/${documentId}`), {
+    headers: workspaceHeaders(),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return (await r.json()) as DocumentRow;
+}
 /* ----------------------------- Chat (non-stream) ----------------------------- */
 
 export async function chat(payload: {
@@ -234,3 +241,4 @@ export async function deleteDocument(documentId: number) {
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
+

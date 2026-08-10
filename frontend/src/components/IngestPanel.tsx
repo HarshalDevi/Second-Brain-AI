@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileAudio, FileText, Globe2, Loader2, RefreshCw, Type, UploadCloud } from "lucide-react";
-import { ingestAudio, ingestFile, ingestText, ingestUrl, jobStatus } from "@/lib/api";
+import { getDocument, ingestAudio, ingestFile, ingestText, ingestUrl, jobStatus } from "@/lib/api";
 import type { DocumentRow, IngestJobOut } from "@/lib/types";
 
 const modes = [
@@ -67,15 +67,54 @@ export function IngestPanel() {
     }
   }
 
+  async function refreshJobAndDocument(documentId: number) {
+    const nextJob = await jobStatus(documentId);
+    setJob(nextJob);
+
+    if (nextJob.status === "done" || nextJob.status === "failed") {
+      setCreatedDoc(await getDocument(documentId));
+    }
+  }
+
   async function onRefreshJob() {
     if (!createdDoc) return;
     setErr(null);
     try {
-      setJob(await jobStatus(createdDoc.id));
+      await refreshJobAndDocument(createdDoc.id);
     } catch (e: unknown) {
       setErr(errorMessage(e));
     }
   }
+
+  useEffect(() => {
+    if (!createdDoc || job?.status === "done" || job?.status === "failed") return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const nextJob = await jobStatus(createdDoc.id);
+        if (cancelled) return;
+        setJob(nextJob);
+
+        if (nextJob.status === "done" || nextJob.status === "failed") {
+          const nextDoc = await getDocument(createdDoc.id);
+          if (!cancelled) setCreatedDoc(nextDoc);
+        }
+      } catch (e: unknown) {
+        if (!cancelled) setErr(errorMessage(e));
+      }
+    };
+
+    void poll();
+    const interval = window.setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [createdDoc?.id, job?.status]);
+
+  const displayedDocumentStatus =
+    job?.status === "done" ? "ready" : job?.status === "failed" ? "error" : createdDoc?.status;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -217,8 +256,8 @@ export function IngestPanel() {
 
             <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
               <div className="text-xs text-slate-500">Document status</div>
-              <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(createdDoc.status)}`}>
-                {createdDoc.status}
+              <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${statusTone(displayedDocumentStatus)}`}>
+                {displayedDocumentStatus}
               </span>
               {createdDoc.error && <div className="mt-2 text-sm text-red-700">{createdDoc.error}</div>}
             </div>
@@ -241,3 +280,4 @@ export function IngestPanel() {
     </div>
   );
 }
+

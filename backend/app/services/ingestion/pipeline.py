@@ -1,23 +1,24 @@
 from datetime import datetime
-from sqlalchemy import update, text
+
+from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import AsyncSessionLocal
 from app.models.models import (
-    Document,
     Chunk,
     ChunkEmbedding,
+    Document,
     DocumentStatus,
-    JobStatus,
-    JobStage,
-    SourceType,
     IngestionJob,
+    JobStage,
+    JobStatus,
+    SourceType,
 )
 from app.services.chunking import chunk_text
 from app.services.embeddings import embed_texts
+from app.services.ingestion.audio import transcribe_audio
 from app.services.ingestion.documents import extract_text_from_file
 from app.services.ingestion.web import fetch_and_extract_url
-from app.services.ingestion.audio import transcribe_audio
 
 
 async def _set_job(
@@ -48,11 +49,14 @@ async def _set_doc_status(
     await db.execute(
         update(Document)
         .where(Document.id == doc_id)
-        .values(status=status, error=error)
+        .values(
+            status=status,
+            error=error,
+            ingested_at=datetime.utcnow() if status == DocumentStatus.ready else None,
+        )
     )
 
 
-# ✅ FIXED: db is created INSIDE
 async def run_ingestion_pipeline(
     document_id: int,
     *,
@@ -63,7 +67,6 @@ async def run_ingestion_pipeline(
 ):
     async with AsyncSessionLocal() as db:
         try:
-            # ---- extract ----
             await _set_job(db, document_id, JobStatus.processing, JobStage.extract)
             await db.commit()
 
@@ -102,7 +105,6 @@ async def run_ingestion_pipeline(
                 )
                 await db.commit()
 
-            # ---- chunk ----
             await _set_job(db, document_id, JobStatus.processing, JobStage.chunk)
             await db.commit()
 
@@ -110,13 +112,11 @@ async def run_ingestion_pipeline(
             if not chunks:
                 raise ValueError("Chunking produced 0 chunks")
 
-            # ---- embed ----
             await _set_job(db, document_id, JobStatus.processing, JobStage.embed)
             await db.commit()
 
             embeddings = await embed_texts([c.text for c in chunks])
 
-            # ---- store ----
             await _set_job(db, document_id, JobStatus.processing, JobStage.store)
             await db.commit()
 
@@ -142,7 +142,6 @@ async def run_ingestion_pipeline(
                     {"t": c.text, "id": chunk_row.id},
                 )
 
-            # ---- complete ----
             await _set_job(db, document_id, JobStatus.done, JobStage.complete)
             await _set_doc_status(db, document_id, DocumentStatus.ready, None)
             await db.commit()
