@@ -12,7 +12,16 @@ async def retrieve_top_chunks(
     candidate_limit = max(limit * 4, 24)
 
     sql = text("""
-    WITH q AS (
+    WITH usable_chunks AS (
+      SELECT *
+      FROM chunks
+      WHERE length(text) >= 40
+        AND text !~ '[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]'
+        AND (
+          length(text) - length(regexp_replace(text, '[A-Za-z0-9 .,;:!?()''"/-]', '', 'g'))
+        )::float / GREATEST(length(text), 1) > 0.72
+    ),
+    q AS (
       SELECT
         CAST(:qvec AS vector) AS qvec,
         websearch_to_tsquery('english', :query) AS query_terms
@@ -28,7 +37,7 @@ async def retrieve_top_chunks(
         1 - (e.embedding <=> (SELECT qvec FROM q)) AS vector_score,
         row_number() OVER (ORDER BY e.embedding <=> (SELECT qvec FROM q)) AS vector_rank
       FROM chunk_embeddings e
-      JOIN chunks c ON c.id = e.chunk_id
+      JOIN usable_chunks c ON c.id = e.chunk_id
       JOIN documents d ON d.id = c.document_id
       ORDER BY e.embedding <=> (SELECT qvec FROM q)
       LIMIT :candidate_limit
@@ -51,7 +60,7 @@ async def retrieve_top_chunks(
             (SELECT query_terms FROM q)
           ) DESC
         ) AS keyword_rank
-      FROM chunks c
+      FROM usable_chunks c
       JOIN documents d ON d.id = c.document_id
       WHERE (SELECT query_terms FROM q) @@ to_tsvector('english', COALESCE(c.tsv, c.text))
       ORDER BY keyword_score DESC

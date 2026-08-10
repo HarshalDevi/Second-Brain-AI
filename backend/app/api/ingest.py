@@ -30,6 +30,7 @@ from app.models.schemas import (
     JobOut,
 )
 from app.services.ingestion.pipeline import run_ingestion_pipeline
+from app.services.ingestion.documents import supported_document_extensions
 
 router = APIRouter()
 
@@ -144,6 +145,13 @@ async def ingest_file(
     os.makedirs(settings.upload_dir, exist_ok=True)
 
     ext = os.path.splitext(file.filename or "")[1].lower() or ".bin"
+    if ext not in supported_document_extensions():
+        supported = ", ".join(sorted(supported_document_extensions()))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported document type '{ext}'. Supported types: {supported}",
+        )
+
     fname = f"{uuid.uuid4().hex}{ext}"
     path = os.path.join(settings.upload_dir, fname)
 
