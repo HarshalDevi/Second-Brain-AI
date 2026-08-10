@@ -4,6 +4,9 @@ import { useState } from "react";
 import { ingestAudio, ingestFile, ingestText, ingestUrl, jobStatus } from "@/lib/api";
 import type { DocumentRow, IngestJobOut } from "@/lib/types";
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 export function IngestPanel() {
   const [mode, setMode] = useState<"text" | "url" | "file" | "audio">("text");
   const [title, setTitle] = useState("Daily Notes");
@@ -39,8 +42,8 @@ export function IngestPanel() {
       // poll once immediately
       const j = await jobStatus(doc.id);
       setJob(j);
-    } catch (e: any) {
-      setErr(e?.message || String(e));
+    } catch (e: unknown) {
+      setErr(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -52,8 +55,8 @@ export function IngestPanel() {
     try {
       const j = await jobStatus(createdDoc.id);
       setJob(j);
-    } catch (e: any) {
-      setErr(e?.message || String(e));
+    } catch (e: unknown) {
+      setErr(errorMessage(e));
     }
   }
 

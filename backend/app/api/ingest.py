@@ -34,6 +34,7 @@ from app.services.ingestion.pipeline import run_ingestion_pipeline
 router = APIRouter()
 
 
+
 # --------------------------------------------------
 # SAFE ORM → SCHEMA CONVERTER
 # --------------------------------------------------
@@ -46,7 +47,10 @@ def _doc_out(doc: Document) -> DocumentOut:
         mime_type=doc.mime_type,
         size_bytes=doc.size_bytes,
         status=doc.status,
+        error=doc.error,
         created_at=doc.created_at,
+        ingested_at=doc.ingested_at,
+        source_published_at=doc.source_published_at,
     )
 
 

@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { deleteDocument, getDocumentChunks, listDocuments } from "@/lib/api";
 import type { ChunkOut, DocumentRow } from "@/lib/types";
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 export function DocumentsPanel() {
   const [docs, setDocs] = useState<DocumentRow[]>([]);
   const [selected, setSelected] = useState<DocumentRow | null>(null);
@@ -17,8 +20,8 @@ export function DocumentsPanel() {
     try {
       const d = await listDocuments();
       setDocs(d);
-    } catch (e: any) {
-      setErr(e?.message || String(e));
+    } catch (e: unknown) {
+      setErr(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -35,8 +38,8 @@ export function DocumentsPanel() {
     try {
       const c = await getDocumentChunks(doc.id);
       setChunks(c);
-    } catch (e: any) {
-      setErr(e?.message || String(e));
+    } catch (e: unknown) {
+      setErr(errorMessage(e));
     }
   }
 
@@ -50,8 +53,8 @@ export function DocumentsPanel() {
         setChunks([]);
       }
       await refresh();
-    } catch (e: any) {
-      setErr(e?.message || String(e));
+    } catch (e: unknown) {
+      setErr(errorMessage(e));
     }
   }
 

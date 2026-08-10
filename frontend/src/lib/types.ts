@@ -1,27 +1,37 @@
 export type DocumentRow = {
   id: number;
-  title: string;
+  title: string | null;
   source_type: string;
+  source_uri?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
   status: string;
   error?: string | null;
+  created_at?: string | null;
+  ingested_at?: string | null;
+  source_published_at?: string | null;
 };
 
 export type ChunkOut = {
   id: number;
+  document_id: number;
   chunk_index: number;
   text: string;
+  created_at?: string | null;
 };
 
 export type ChunkRow = {
-  chunk_id: string;
+  chunk_id: number | string;
   document_id: number;
   chunk_index: number;
   text: string;
   score?: number;
-  doc_title?: string;
+  title?: string | null;
+  doc_title?: string | null;
 };
 
 export type IngestJobOut = {
+  document_id?: number;
   status: string;
   stage?: string;
   error?: string | null;

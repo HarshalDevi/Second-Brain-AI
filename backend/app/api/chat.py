@@ -104,7 +104,7 @@ async def chat_stream(payload: ChatIn, db: AsyncSession = Depends(get_db)):
             "document_id": c["document_id"],
             "chunk_index": c["chunk_index"],
             "score": float(c["score"]) if c["score"] is not None else None,
-            "title": c.get("title"),
+            "title": c.get("doc_title"),
             "text": c.get("text"),
         }
         for c in chunks

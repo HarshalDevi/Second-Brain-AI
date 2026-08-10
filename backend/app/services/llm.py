@@ -45,8 +45,9 @@ async def answer_query(query: str, chunks: list[dict]) -> tuple[str, list[dict]]
                 "chunk_id": c["chunk_id"],
                 "document_id": c["document_id"],
                 "chunk_index": c["chunk_index"],
-                "score": c["score"],
+                "score": float(c["score"]) if c["score"] is not None else None,
                 "title": c.get("doc_title"),
+                "text": c.get("text"),
             }
         )
     return answer, citations

@@ -18,7 +18,10 @@ class DocumentOut(BaseModel):
     mime_type: str | None
     size_bytes: int | None
     status: str
+    error: str | None = None
     created_at: datetime | None
+    ingested_at: datetime | None = None
+    source_published_at: datetime | None = None
 
 class JobOut(BaseModel):
     document_id: int
@@ -35,7 +38,7 @@ class ChatIn(BaseModel):
 class ChatOut(BaseModel):
     conversation_id: int
     answer: str
-    citations: list[dict] = []
+    citations: list[dict] = Field(default_factory=list)
 
 
 class ConversationOut(BaseModel):
