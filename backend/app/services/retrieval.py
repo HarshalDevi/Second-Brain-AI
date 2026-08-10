@@ -1,7 +1,7 @@
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-MIN_SCORE = 0.28
+MIN_SCORE = 0.35
 MIN_VECTOR_SCORE = 0.35
 MIN_KEYWORD_SCORE = 0.04
 
@@ -136,3 +136,4 @@ async def retrieve_top_chunks(
 
     rows = [row for row in result.mappings().all() if _passes_relevance(row)]
     return rows[:limit]
+
