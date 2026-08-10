@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # App
     app_env: str = Field(default="dev", alias="APP_ENV")
     cors_allow_origins: str = Field(default="*")
+    cors_allow_origin_regex: str | None = Field(default=None)
 
     # Files
     upload_dir: str = Field(default="./uploads", alias="UPLOAD_DIR")

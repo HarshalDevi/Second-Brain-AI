@@ -30,8 +30,9 @@ app = FastAPI(title="SecondBrain", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=settings.cors_origins_list,
+    allow_origin_regex=settings.cors_allow_origin_regex,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -42,6 +43,7 @@ app.include_router(api_router, prefix="/v1")
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 @app.get("/")
 async def root():
