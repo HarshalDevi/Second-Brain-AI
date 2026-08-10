@@ -12,6 +12,11 @@ from app.services.retrieval import retrieve_top_chunks
 
 router = APIRouter()
 
+NO_RELEVANT_CONTEXT_MESSAGE = (
+    "I could not find relevant information in your ingested sources for that question. "
+    "Try adding a more specific document or rephrasing the question."
+)
+
 SMALL_TALK_RESPONSES = {
     "hi": "Hello! How can I help you with your second brain today?",
     "hello": "Hello! How can I help you with your second brain today?",
@@ -110,7 +115,10 @@ async def chat(
     if answer is None:
         q_emb = (await embed_texts([payload.query]))[0]
         chunks = await retrieve_top_chunks(db, q_emb, payload.query, workspace_id)
-        answer, citations = await answer_query(payload.query, chunks)
+        if chunks:
+            answer, citations = await answer_query(payload.query, chunks)
+        else:
+            answer = NO_RELEVANT_CONTEXT_MESSAGE
 
     db.add(
         Message(
@@ -161,6 +169,9 @@ async def chat_stream(
         if small_talk_answer is not None:
             buf.append(small_talk_answer)
             yield f"data: {json.dumps({'token': small_talk_answer})}\n\n"
+        elif not chunks:
+            buf.append(NO_RELEVANT_CONTEXT_MESSAGE)
+            yield f"data: {json.dumps({'token': NO_RELEVANT_CONTEXT_MESSAGE})}\n\n"
         else:
             async for token in stream_answer(payload.query, chunks):
                 buf.append(token)

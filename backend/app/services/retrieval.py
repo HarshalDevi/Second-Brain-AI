@@ -1,6 +1,21 @@
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+MIN_SCORE = 0.28
+MIN_VECTOR_SCORE = 0.35
+MIN_KEYWORD_SCORE = 0.04
+
+
+def _passes_relevance(row) -> bool:
+    score = float(row["score"] or 0)
+    vector_score = float(row["vector_score"] or 0)
+    keyword_score = float(row["keyword_score"] or 0)
+    return (
+        score >= MIN_SCORE
+        or vector_score >= MIN_VECTOR_SCORE
+        or keyword_score >= MIN_KEYWORD_SCORE
+    )
+
 
 async def retrieve_top_chunks(
     db: AsyncSession,
@@ -10,7 +25,7 @@ async def retrieve_top_chunks(
     limit: int = 8,
 ):
     vector_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-    candidate_limit = max(limit * 4, 24)
+    candidate_limit = max(limit * 6, 36)
 
     sql = text("""
     WITH usable_chunks AS (
@@ -18,6 +33,7 @@ async def retrieve_top_chunks(
       FROM chunks c
       JOIN documents d ON d.id = c.document_id
       WHERE d.workspace_id = :workspace_id
+        AND d.status = 'ready'
         AND length(c.text) >= 40
         AND c.text !~ '[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]'
         AND (
@@ -105,7 +121,7 @@ async def retrieve_top_chunks(
       ) AS score
     FROM candidates
     ORDER BY score DESC, vector_score DESC, keyword_score DESC
-    LIMIT :limit
+    LIMIT :candidate_limit
     """)
 
     result = await db.execute(
@@ -114,9 +130,9 @@ async def retrieve_top_chunks(
             "qvec": vector_str,
             "query": query_text,
             "workspace_id": workspace_id,
-            "limit": limit,
             "candidate_limit": candidate_limit,
         },
     )
 
-    return result.mappings().all()
+    rows = [row for row in result.mappings().all() if _passes_relevance(row)]
+    return rows[:limit]

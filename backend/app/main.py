@@ -20,6 +20,9 @@ async def lifespan(app: FastAPI):
         await conn.exec_driver_sql("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(120);")
         await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_documents_workspace_id ON documents (workspace_id);")
         await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_conversations_workspace_id ON conversations (workspace_id);")
+        await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_documents_workspace_status ON documents (workspace_id, status);")
+        await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_chunks_fts_english ON chunks USING GIN (to_tsvector('english', COALESCE(tsv, text)));")
+        await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_chunk_embeddings_vector_cosine ON chunk_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);")
 
     yield
 
