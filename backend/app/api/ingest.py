@@ -4,41 +4,33 @@ from datetime import datetime
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
+    File,
     HTTPException,
     UploadFile,
-    File,
-    BackgroundTasks,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import get_db, get_workspace_id
 from app.config import settings
-from app.api.dependencies import get_db
+
 from app.models.models import (
     Document,
-    IngestionJob,
-    SourceType,
     DocumentStatus,
-    JobStatus,
+    IngestionJob,
     JobStage,
+    JobStatus,
+    SourceType,
 )
-from app.models.schemas import (
-    IngestTextIn,
-    IngestUrlIn,
-    DocumentOut,
-    JobOut,
-)
-from app.services.ingestion.pipeline import run_ingestion_pipeline
+from app.models.schemas import DocumentOut, IngestTextIn, IngestUrlIn, JobOut
 from app.services.ingestion.documents import supported_document_extensions
+from app.services.ingestion.pipeline import run_ingestion_pipeline
 
 router = APIRouter()
 
 
-
-# --------------------------------------------------
-# SAFE ORM → SCHEMA CONVERTER
-# --------------------------------------------------
 def _doc_out(doc: Document) -> DocumentOut:
     return DocumentOut(
         id=doc.id,
@@ -52,16 +44,26 @@ def _doc_out(doc: Document) -> DocumentOut:
         created_at=doc.created_at,
         ingested_at=doc.ingested_at,
         source_published_at=doc.source_published_at,
+        workspace_id=doc.workspace_id,
     )
 
 
-# --------------------------------------------------
-# TEXT INGEST
-# --------------------------------------------------
+async def _create_job(db: AsyncSession, doc_id: int) -> None:
+    db.add(
+        IngestionJob(
+            document_id=doc_id,
+            status=JobStatus.queued,
+            stage=JobStage.extract,
+        )
+    )
+    await db.commit()
+
+
 @router.post("/text", response_model=DocumentOut)
 async def ingest_text(
     payload: IngestTextIn,
     background_tasks: BackgroundTasks,
+    workspace_id: str = Depends(get_workspace_id),
     db: AsyncSession = Depends(get_db),
 ):
     doc = Document(
@@ -72,17 +74,11 @@ async def ingest_text(
         size_bytes=len(payload.text.encode("utf-8", errors="ignore")),
         status=DocumentStatus.processing,
         created_at=datetime.utcnow(),
+        workspace_id=workspace_id,
     )
     db.add(doc)
     await db.flush()
-
-    job = IngestionJob(
-        document_id=doc.id,
-        status=JobStatus.queued,
-        stage=JobStage.extract,
-    )
-    db.add(job)
-    await db.commit()
+    await _create_job(db, doc.id)
 
     background_tasks.add_task(
         run_ingestion_pipeline,
@@ -94,13 +90,11 @@ async def ingest_text(
     return _doc_out(doc)
 
 
-# --------------------------------------------------
-# URL INGEST  ✅ FIXED
-# --------------------------------------------------
 @router.post("/url", response_model=DocumentOut)
 async def ingest_url(
     payload: IngestUrlIn,
     background_tasks: BackgroundTasks,
+    workspace_id: str = Depends(get_workspace_id),
     db: AsyncSession = Depends(get_db),
 ):
     doc = Document(
@@ -111,17 +105,11 @@ async def ingest_url(
         size_bytes=None,
         status=DocumentStatus.processing,
         created_at=datetime.utcnow(),
+        workspace_id=workspace_id,
     )
     db.add(doc)
     await db.flush()
-
-    job = IngestionJob(
-        document_id=doc.id,
-        status=JobStatus.queued,
-        stage=JobStage.extract,
-    )
-    db.add(job)
-    await db.commit()
+    await _create_job(db, doc.id)
 
     background_tasks.add_task(
         run_ingestion_pipeline,
@@ -133,13 +121,11 @@ async def ingest_url(
     return _doc_out(doc)
 
 
-# --------------------------------------------------
-# FILE INGEST  ✅ FIXED
-# --------------------------------------------------
 @router.post("/file", response_model=DocumentOut)
 async def ingest_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    workspace_id: str = Depends(get_workspace_id),
     db: AsyncSession = Depends(get_db),
 ):
     os.makedirs(settings.upload_dir, exist_ok=True)
@@ -170,17 +156,11 @@ async def ingest_file(
         size_bytes=len(content),
         status=DocumentStatus.processing,
         created_at=datetime.utcnow(),
+        workspace_id=workspace_id,
     )
     db.add(doc)
     await db.flush()
-
-    job = IngestionJob(
-        document_id=doc.id,
-        status=JobStatus.queued,
-        stage=JobStage.extract,
-    )
-    db.add(job)
-    await db.commit()
+    await _create_job(db, doc.id)
 
     background_tasks.add_task(
         run_ingestion_pipeline,
@@ -192,16 +172,14 @@ async def ingest_file(
     return _doc_out(doc)
 
 
-# --------------------------------------------------
-# AUDIO INGEST  ✅ FIXED
-# --------------------------------------------------
 @router.post("/audio", response_model=DocumentOut)
 async def ingest_audio(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    workspace_id: str = Depends(get_workspace_id),
     db: AsyncSession = Depends(get_db),
 ):
-    if not file.content_type.startswith("audio/"):
+    if not file.content_type or not file.content_type.startswith("audio/"):
         raise HTTPException(status_code=400, detail="Invalid audio file")
 
     os.makedirs(settings.upload_dir, exist_ok=True)
@@ -225,17 +203,11 @@ async def ingest_audio(
         size_bytes=len(content),
         status=DocumentStatus.processing,
         created_at=datetime.utcnow(),
+        workspace_id=workspace_id,
     )
     db.add(doc)
     await db.flush()
-
-    job = IngestionJob(
-        document_id=doc.id,
-        status=JobStatus.queued,
-        stage=JobStage.extract,
-    )
-    db.add(job)
-    await db.commit()
+    await _create_job(db, doc.id)
 
     background_tasks.add_task(
         run_ingestion_pipeline,
@@ -247,17 +219,20 @@ async def ingest_audio(
     return _doc_out(doc)
 
 
-# --------------------------------------------------
-# JOB STATUS
-# --------------------------------------------------
 @router.get("/jobs/{document_id}", response_model=JobOut)
 async def job_status(
     document_id: int,
+    workspace_id: str = Depends(get_workspace_id),
     db: AsyncSession = Depends(get_db),
 ):
     job = (
         await db.execute(
-            select(IngestionJob).where(IngestionJob.document_id == document_id)
+            select(IngestionJob)
+            .join(Document)
+            .where(
+                IngestionJob.document_id == document_id,
+                Document.workspace_id == workspace_id,
+            )
         )
     ).scalar_one_or_none()
 

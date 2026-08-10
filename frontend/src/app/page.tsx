@@ -167,9 +167,15 @@ export default function Page() {
               </h2>
             </div>
 
-            {tab === "chat" && <ChatPanel />}
-            {tab === "ingest" && <IngestPanel />}
-            {tab === "docs" && <DocumentsPanel />}
+            <div className={tab === "chat" ? "block" : "hidden"}>
+              <ChatPanel />
+            </div>
+            <div className={tab === "ingest" ? "block" : "hidden"}>
+              <IngestPanel />
+            </div>
+            <div className={tab === "docs" ? "block" : "hidden"}>
+              <DocumentsPanel />
+            </div>
           </section>
         </div>
       </div>

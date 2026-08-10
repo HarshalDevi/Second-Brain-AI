@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowUp, Loader2, MessageSquareText, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUp, BookOpen, Loader2, MessageSquareText, RotateCcw, Sparkles, X } from "lucide-react";
 import type { ChunkRow } from "@/lib/types";
 import { chatStream } from "@/lib/api";
 import { CitationsPanel } from "@/components/CitationsPanel";
@@ -25,6 +25,7 @@ export function ChatPanel() {
   const [citations, setCitations] = useState<ChunkRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
 
   const canSend = useMemo(
     () => query.trim().length > 0 && !busy,
@@ -91,7 +92,7 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+    <div>
       <section className="flex min-h-[720px] flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-3">
@@ -106,13 +107,25 @@ export function ChatPanel() {
             </div>
           </div>
 
-          <button
-            onClick={resetConversation}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
-          >
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Reset
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSourcesOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-cyan-50 px-3 py-2 text-sm font-medium text-cyan-800 ring-1 ring-cyan-100 hover:bg-cyan-100"
+            >
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+              Sources
+              <span className="rounded-full bg-white px-2 py-0.5 text-xs text-cyan-700 ring-1 ring-cyan-100">
+                {citations.length}
+              </span>
+            </button>
+            <button
+              onClick={resetConversation}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              Reset
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto bg-slate-50/70 px-4 py-4">
@@ -215,7 +228,28 @@ export function ChatPanel() {
         </form>
       </section>
 
-      <CitationsPanel citations={citations} />
+      {sourcesOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/35 p-3 backdrop-blur-sm sm:p-5">
+          <div className="flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">Answer sources</div>
+                <div className="text-xs text-slate-500">Review the retrieved evidence in a wider reading view</div>
+              </div>
+              <button
+                onClick={() => setSourcesOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                aria-label="Close sources"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <CitationsPanel citations={citations} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

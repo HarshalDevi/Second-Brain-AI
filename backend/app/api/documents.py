@@ -1,29 +1,41 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
 
-from app.api.dependencies import get_db
-from app.models.models import Document, Chunk
-from app.models.schemas import DocumentOut, ChunkOut
+from app.api.dependencies import get_db, get_workspace_id
+from app.models.models import Chunk, Document
+from app.models.schemas import ChunkOut, DocumentOut
 
 router = APIRouter()
 
 
 @router.get("", response_model=list[DocumentOut])
-async def list_documents(db: AsyncSession = Depends(get_db)):
+async def list_documents(
+    workspace_id: str = Depends(get_workspace_id),
+    db: AsyncSession = Depends(get_db),
+):
     docs = (
         await db.execute(
-            select(Document).order_by(Document.created_at.desc())
+            select(Document)
+            .where(Document.workspace_id == workspace_id)
+            .order_by(Document.created_at.desc())
         )
     ).scalars().all()
     return [DocumentOut(**d.__dict__) for d in docs]
 
 
 @router.get("/{doc_id}", response_model=DocumentOut)
-async def get_document(doc_id: int, db: AsyncSession = Depends(get_db)):
+async def get_document(
+    doc_id: int,
+    workspace_id: str = Depends(get_workspace_id),
+    db: AsyncSession = Depends(get_db),
+):
     doc = (
         await db.execute(
-            select(Document).where(Document.id == doc_id)
+            select(Document).where(
+                Document.id == doc_id,
+                Document.workspace_id == workspace_id,
+            )
         )
     ).scalar_one_or_none()
 
@@ -34,7 +46,22 @@ async def get_document(doc_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{doc_id}/chunks", response_model=list[ChunkOut])
-async def get_document_chunks(doc_id: int, db: AsyncSession = Depends(get_db)):
+async def get_document_chunks(
+    doc_id: int,
+    workspace_id: str = Depends(get_workspace_id),
+    db: AsyncSession = Depends(get_db),
+):
+    doc = (
+        await db.execute(
+            select(Document.id).where(
+                Document.id == doc_id,
+                Document.workspace_id == workspace_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
     chunks = (
         await db.execute(
             select(Chunk)
@@ -56,10 +83,17 @@ async def get_document_chunks(doc_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_document(
+    doc_id: int,
+    workspace_id: str = Depends(get_workspace_id),
+    db: AsyncSession = Depends(get_db),
+):
     doc = (
         await db.execute(
-            select(Document).where(Document.id == doc_id)
+            select(Document).where(
+                Document.id == doc_id,
+                Document.workspace_id == workspace_id,
+            )
         )
     ).scalar_one_or_none()
 

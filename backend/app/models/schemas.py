@@ -22,6 +22,7 @@ class DocumentOut(BaseModel):
     created_at: datetime | None
     ingested_at: datetime | None = None
     source_published_at: datetime | None = None
+    workspace_id: str | None = None
 
 class JobOut(BaseModel):
     document_id: int

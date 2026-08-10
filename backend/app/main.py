@@ -16,6 +16,10 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector;")
         await conn.run_sync(Base.metadata.create_all)
+        await conn.exec_driver_sql("ALTER TABLE documents ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(120);")
+        await conn.exec_driver_sql("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS workspace_id VARCHAR(120);")
+        await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_documents_workspace_id ON documents (workspace_id);")
+        await conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_conversations_workspace_id ON conversations (workspace_id);")
 
     yield
 

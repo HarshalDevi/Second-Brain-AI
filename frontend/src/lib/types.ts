@@ -10,6 +10,7 @@ export type DocumentRow = {
   created_at?: string | null;
   ingested_at?: string | null;
   source_published_at?: string | null;
+  workspace_id?: string | null;
 };
 
 export type ChunkOut = {

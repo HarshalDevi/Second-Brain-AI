@@ -6,6 +6,7 @@ async def retrieve_top_chunks(
     db: AsyncSession,
     query_embedding: list[float],
     query_text: str,
+    workspace_id: str,
     limit: int = 8,
 ):
     vector_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
@@ -13,13 +14,15 @@ async def retrieve_top_chunks(
 
     sql = text("""
     WITH usable_chunks AS (
-      SELECT *
-      FROM chunks
-      WHERE length(text) >= 40
-        AND text !~ '[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]'
+      SELECT c.*
+      FROM chunks c
+      JOIN documents d ON d.id = c.document_id
+      WHERE d.workspace_id = :workspace_id
+        AND length(c.text) >= 40
+        AND c.text !~ '[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]'
         AND (
-          length(text) - length(regexp_replace(text, '[A-Za-z0-9 .,;:!?()''"/-]', '', 'g'))
-        )::float / GREATEST(length(text), 1) > 0.72
+          length(c.text) - length(regexp_replace(c.text, '[A-Za-z0-9 .,;:!?()''"/-]', '', 'g'))
+        )::float / GREATEST(length(c.text), 1) > 0.72
     ),
     q AS (
       SELECT
@@ -110,6 +113,7 @@ async def retrieve_top_chunks(
         {
             "qvec": vector_str,
             "query": query_text,
+            "workspace_id": workspace_id,
             "limit": limit,
             "candidate_limit": candidate_limit,
         },

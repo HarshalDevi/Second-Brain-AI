@@ -7,6 +7,7 @@ import type {
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+const WORKSPACE_STORAGE_KEY = "secondbrain.workspaceId";
 
 type StreamMeta = {
   conversation_id?: number | null;
@@ -15,6 +16,24 @@ type StreamMeta = {
 
 function url(path: string) {
   return `${API_BASE}${path}`;
+}
+
+export function getWorkspaceId() {
+  if (typeof window === "undefined") return "server-workspace";
+
+  const existing = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
+  if (existing) return existing;
+
+  const id = `ws_${crypto.randomUUID().replaceAll("-", "")}`;
+  window.localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
+  return id;
+}
+
+function workspaceHeaders(extra?: HeadersInit): HeadersInit {
+  return {
+    ...(extra ?? {}),
+    "X-Workspace-Id": getWorkspaceId(),
+  };
 }
 
 /* ----------------------------- Health ----------------------------- */
@@ -30,7 +49,7 @@ export async function health() {
 export async function ingestText(payload: { title: string; text: string }) {
   const r = await fetch(url("/v1/ingest/text"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: workspaceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
   if (!r.ok) throw new Error(await r.text());
@@ -40,7 +59,7 @@ export async function ingestText(payload: { title: string; text: string }) {
 export async function ingestUrl(payload: { title: string; url: string }) {
   const r = await fetch(url("/v1/ingest/url"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: workspaceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
   if (!r.ok) throw new Error(await r.text());
@@ -53,6 +72,7 @@ export async function ingestFile(file: File) {
 
   const r = await fetch(url("/v1/ingest/file"), {
     method: "POST",
+    headers: workspaceHeaders(),
     body: fd,
   });
   if (!r.ok) throw new Error(await r.text());
@@ -65,6 +85,7 @@ export async function ingestAudio(file: File) {
 
   const r = await fetch(url("/v1/ingest/audio"), {
     method: "POST",
+    headers: workspaceHeaders(),
     body: fd,
   });
   if (!r.ok) throw new Error(await r.text());
@@ -72,7 +93,9 @@ export async function ingestAudio(file: File) {
 }
 
 export async function jobStatus(documentId: number) {
-  const r = await fetch(url(`/v1/ingest/jobs/${documentId}`));
+  const r = await fetch(url(`/v1/ingest/jobs/${documentId}`), {
+    headers: workspaceHeaders(),
+  });
   if (!r.ok) throw new Error(await r.text());
   return (await r.json()) as IngestJobOut;
 }
@@ -85,7 +108,7 @@ export async function chat(payload: {
 }) {
   const r = await fetch(url("/v1/chat"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: workspaceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       query: payload.query,
       conversation_id: payload.conversation_id ?? null,
@@ -97,12 +120,6 @@ export async function chat(payload: {
 }
 
 /* ----------------------------- Chat (streaming SSE) ----------------------------- */
-/**
- * Expects:
- *  - event: meta   data: {"conversation_id":..., "citations":[...]}
- *  - data: <token>
- *  - event: done
- */
 export async function chatStream(
   payload: { query: string; conversation_id?: number | null },
   handlers: {
@@ -113,7 +130,7 @@ export async function chatStream(
 ) {
   const r = await fetch(url("/v1/chat/stream"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: workspaceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       query: payload.query,
       conversation_id: payload.conversation_id ?? null,
@@ -187,7 +204,6 @@ export async function chatStream(
 
     if (buffer.trim()) emit(buffer);
   } finally {
-    // 🔑 CRITICAL FIX: never leave UI stuck in loading
     handlers.onDone?.();
   }
 }
@@ -195,13 +211,17 @@ export async function chatStream(
 /* ----------------------------- Documents ----------------------------- */
 
 export async function listDocuments() {
-  const r = await fetch(url("/v1/documents"));
+  const r = await fetch(url("/v1/documents"), {
+    headers: workspaceHeaders(),
+  });
   if (!r.ok) throw new Error(await r.text());
   return (await r.json()) as DocumentRow[];
 }
 
 export async function getDocumentChunks(documentId: number) {
-  const r = await fetch(url(`/v1/documents/${documentId}/chunks`));
+  const r = await fetch(url(`/v1/documents/${documentId}/chunks`), {
+    headers: workspaceHeaders(),
+  });
   if (!r.ok) throw new Error(await r.text());
   return (await r.json()) as ChunkOut[];
 }
@@ -209,6 +229,7 @@ export async function getDocumentChunks(documentId: number) {
 export async function deleteDocument(documentId: number) {
   const r = await fetch(url(`/v1/documents/${documentId}`), {
     method: "DELETE",
+    headers: workspaceHeaders(),
   });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
