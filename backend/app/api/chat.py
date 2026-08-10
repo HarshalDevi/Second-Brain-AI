@@ -1,4 +1,5 @@
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -32,6 +33,12 @@ def small_talk_response(query: str) -> str | None:
         return SMALL_TALK_RESPONSES[normalized]
     if normalized in {"good morning", "good afternoon", "good evening"}:
         return "Hello! What would you like to explore from your knowledge base?"
+    if re.fullmatch(r"(hi|hello|hey|yo|hiya)[, ]+(how are you|how r u|how are u)\??", normalized):
+        return "I'm doing well and ready to help. Ask me anything from your second brain."
+    if re.fullmatch(r"(how are you|how r u|how are u)\??", normalized):
+        return "I'm doing well and ready to help. What would you like to explore?"
+    if re.fullmatch(r"(hi|hello|hey|yo|hiya)\b.*", normalized) and len(normalized.split()) <= 5:
+        return "Hello! How can I help you with your second brain today?"
     return None
 
 
@@ -191,3 +198,4 @@ async def chat_stream(
         await db.commit()
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")
+
