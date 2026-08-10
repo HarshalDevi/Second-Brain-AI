@@ -2,10 +2,16 @@ import type {
   ChatResponse,
   DocumentRow,
   ChunkOut,
+  ChunkRow,
   IngestJobOut,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+
+type StreamMeta = {
+  conversation_id?: number | null;
+  citations?: ChunkRow[];
+};
 
 function url(path: string) {
   return `${API_BASE}${path}`;
@@ -100,7 +106,7 @@ export async function chat(payload: {
 export async function chatStream(
   payload: { query: string; conversation_id?: number | null },
   handlers: {
-    onMeta?: (meta: any) => void;
+    onMeta?: (meta: StreamMeta | string) => void;
     onToken?: (token: string) => void;
     onDone?: () => void;
   }
@@ -150,7 +156,18 @@ export async function chatStream(
       return;
     }
 
-    if (data) handlers.onToken?.(data);
+    if (data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (typeof parsed?.token === "string") {
+          handlers.onToken?.(parsed.token);
+          return;
+        }
+      } catch {
+        // Older backend streams raw token text.
+      }
+      handlers.onToken?.(data);
+    }
   };
 
   try {

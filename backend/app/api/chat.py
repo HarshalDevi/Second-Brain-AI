@@ -120,7 +120,7 @@ async def chat_stream(payload: ChatIn, db: AsyncSession = Depends(get_db)):
         buf = []
         async for token in stream_answer(payload.query, chunks):
             buf.append(token)
-            yield f"data: {token}\n\n"
+            yield f"data: {json.dumps({'token': token})}\n\n"
 
         final_text = "".join(buf)
 
