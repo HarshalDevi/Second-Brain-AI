@@ -154,7 +154,7 @@ async def retrieve_top_chunks(
       JOIN documents d ON d.id = c.document_id
       WHERE EXISTS (
         SELECT 1
-        FROM unnest(:query_terms) AS term
+        FROM unnest(CAST(:query_terms AS text[])) AS term
         WHERE c.text ILIKE '%' || term || '%'
       )
       LIMIT :candidate_limit
