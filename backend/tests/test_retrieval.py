@@ -1,6 +1,6 @@
 import unittest
 
-from app.services.retrieval import _passes_relevance
+from app.services.retrieval import _passes_relevance, _query_terms
 
 
 class RetrievalRelevanceTest(unittest.TestCase):
@@ -43,6 +43,11 @@ class RetrievalRelevanceTest(unittest.TestCase):
                 "what did I recently learn about my phd?",
             )
         )
+
+    def test_query_terms_for_short_note(self):
+        terms = _query_terms("what did I recently learn about my phd?")
+        self.assertIn("phd", terms)
+        self.assertNotIn("recently", terms)
 
 
 if __name__ == "__main__":

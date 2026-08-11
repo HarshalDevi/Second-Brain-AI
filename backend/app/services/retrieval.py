@@ -140,7 +140,7 @@ async def retrieve_top_chunks(
       ORDER BY keyword_score DESC
       LIMIT :candidate_limit
     ),
-    ilike AS (
+    term_matches AS (
       SELECT
         c.id AS chunk_id,
         c.document_id,
@@ -162,7 +162,7 @@ async def retrieve_top_chunks(
     keyword_candidates AS (
       SELECT * FROM kw
       UNION ALL
-      SELECT * FROM ilike
+      SELECT * FROM term_matches
     ),
     deduped_kw AS (
       SELECT DISTINCT ON (chunk_id)
@@ -222,3 +222,4 @@ async def retrieve_top_chunks(
 
     rows = [row for row in result.mappings().all() if _passes_relevance(row, query_text)]
     return rows[:limit]
+
